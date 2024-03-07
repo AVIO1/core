@@ -50,8 +50,25 @@ $( document ).ready(function() {
         _lastWidths = {};
         _lastHeights = {};
 
+        _debounce(f, delay = 50, ensure = true) {
+            // debounce to prevent a flood of calls in a short time
+            let lastCall = Number.NEGATIVE_INFINITY;
+            let wait;
+            let handle;
+            return (...args) => {
+                wait = lastCall + delay - Date.now();
+                clearTimeout(handle);
+                if (wait <= 0 || ensure) {
+                    handle = setTimeout(() => {
+                        f(...args);
+                        lastCall = Date.now();
+                    }, wait);
+                }
+            };
+        }
+
         observe(elements, onSizeChanged, onInitialize) {
-            const observer = new ResizeObserver((entries) => {
+            const observer = new ResizeObserver(this._debounce((entries) => {
                 if (entries != undefined && entries.length > 0) {
                     for (const entry of entries) {
                         const width = entry.contentRect.width;
@@ -77,7 +94,7 @@ $( document ).ready(function() {
                     }
                 }
 
-            });
+            }));
 
             elements.forEach((element) => {
                 observer.observe(element);
@@ -107,8 +124,7 @@ $( document ).ready(function() {
                 // load all dynamic content and start tick routines
                 await this._loadDynamicContent();
             } catch (error) {
-                console.error('Failed initializing Widgets');
-                console.error(error);
+                console.error('Failed initializing Widgets', error);
             }
         }
 
@@ -205,7 +221,9 @@ $( document ).ready(function() {
                     for (const subclass of elem.className.split(" ")) {
                         let id = subclass.split('-')[1];
                         if (id in this.widgetClasses) {
-                            this.widgetClasses[id].onWidgetResize(elem, width, height);
+                            if (this.widgetClasses[id].onWidgetResize(elem, width, height)) {
+                                this._updateGrid(elem.parentElement.parentElement);
+                            }
                         }
                     }
                 },
@@ -216,7 +234,7 @@ $( document ).ready(function() {
 
             // force the cell height of each widget to the lowest value. The grid will adjust the height
             // according to the content of the widget.
-            //this.grid.cellHeight(this.grid.cellWidth() * 0.25);
+            // XXX: once widget sizes are persisted, this should be adjusted accordingly
             this.grid.cellHeight(1);
 
             // Serialization options
@@ -411,13 +429,13 @@ td {
     display: flex;
     flex-wrap: nowrap;
     white-space: nowrap;
-    font-size: 0;
-    border-style: solid;
+    /* font-size: 0; */
+    /* border-style: solid;
     border-color: rgba(217, 79, 0, 0.15);
     border-width: 1px;
     border-left: none;
     border-right: none;
-    border-bottom: none;
+    border-bottom: none; */
 }
 
 .gateway-info {
@@ -431,7 +449,8 @@ td {
     margin: 5px;
 }
 
-.info-detail {
+/* .info-detail { */
+.interface-info {
     display: flex;
     flex-wrap: wrap;
     white-space: wrap;
@@ -595,7 +614,6 @@ div {
 }
 
 .flex-row {
-    width: calc(100% / 2); /* XXX: needs to be fixed for dynamic columns */
     text-align: left;
     word-break: break-word;
 }
